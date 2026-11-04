@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Node ${{ matrix.node }} / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, node: 18 }
+          - { os: ubuntu-latest, node: 20 }
+          - { os: ubuntu-latest, node: 22 }
+          - { os: windows-latest, node: 20 }
+          - { os: windows-latest, node: 22 }
+          - { os: macos-latest, node: 20 }
+          - { os: macos-latest, node: 22 }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run lint
+      - run: npm test
+      - name: Smoke-test the packed tarball
+        run: |
+          npm pack
+          TGZ="$(pwd)/$(ls mcp-coldstart-*.tgz)"
+          SMOKE="$RUNNER_TEMP/smoke"
+          mkdir -p "$SMOKE" && cd "$SMOKE"
+          npm init -y >/dev/null
+          npm install "$TGZ"
+          npx mcp-coldstart --version
+          npx mcp-coldstart -n 3 -- node node_modules/mcp-coldstart/examples/demo-server.mjs --name "smoke & test"
+          npx mcp-coldstart -n 3 -o base.json -- node node_modules/mcp-coldstart/examples/demo-server.mjs
+          npx mcp-coldstart -n 3 --baseline base.json --gate tokens -- node node_modules/mcp-coldstart/examples/demo-server.mjs
+          npx mcp-coldstart -n 2 --shutdown-grace 300 -- node node_modules/mcp-coldstart/examples/demo-server.mjs --ignore-eof
+      - name: Real server through npx (exercises npx.cmd on Windows)
+        run: |
+          cd "$RUNNER_TEMP/smoke"
+          npx mcp-coldstart -n 2 --timeout 120000 -- npx -y @modelcontextprotocol/server-everything

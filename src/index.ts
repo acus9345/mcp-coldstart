@@ -1,0 +1,15 @@
+export { measure, measureOnce } from "./measure.js";
+export type { MeasureOptions } from "./measure.js";
+export { evaluate, loadResult, parseMetric, InputError, ALL_METRICS, DEFAULT_GATE } from "./compare.js";
+export type { GateOptions } from "./compare.js";
+export { formatText, formatJson, formatMarkdown } from "./format.js";
+export type { Report, FormatOptions } from "./format.js";
+export { percentile, summarize, computeStats, METRICS } from "./stats.js";
+export { StdioClient, ServerError, DEFAULT_PROTOCOL_VERSION, killAllServers } from "./client.js";
+export { planSpawn, resolveWindowsCommand, escapeArgument, escapeCommand, forwardsAllArgs, comspecPath, UnsafeArgumentError } from "./spawn.js";
+export type { SpawnPlan, PlanOptions, ResolveOptions } from "./spawn.js";
+export type { LaunchOptions, CloseResult } from "./client.js";
+export { treeMemoryMb } from "./memory.js";
+export { VERSION } from "./version.js";
+export type { BudgetCheck, Metric, MetricComparison, Result, Sample, ServerMeta, Stat, StatName, Verdict } from "./types.js";
+export { redactCommand, makeScrubber, executableName, REDACTED } from "./redact.js";
