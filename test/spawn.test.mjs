@@ -122,6 +122,9 @@ test("resolveWindowsCommand: PATH + PATHEXT lookup", () => {
   same(resolveWindowsCommand("npx", { env: withJs }), path.join(b, "npx.cmd"));
   assert.equal(resolveWindowsCommand("README", { env }), null, "files without a PATHEXT extension are not runnable");
   assert.equal(resolveWindowsCommand("missing", { env }), null);
+  writeFileSync(path.join(root, "a.exe"), "");
+  assert.equal(resolveWindowsCommand("", { env }), null, "empty command never resolves to <dir>.exe");
+  assert.equal(resolveWindowsCommand("   ", { env }), null);
   same(resolveWindowsCommand(path.join("sub", "srv"), { env, cwd: root }), path.join(root, "sub", "srv.bat"));
   assert.equal(resolveWindowsCommand("srv", { env, cwd: path.join(root, "sub") }), null, "cwd is not searched implicitly");
 });

@@ -32,9 +32,12 @@ function pct(p: number | null): string {
 }
 
 function serverLine(r: Result): string {
-  const s = r.server;
-  const name = s.name ? `${s.name}${s.version ? ` ${s.version}` : ""}` : "MCP server";
-  return clean(`${name}${s.protocolVersion ? ` (protocol ${s.protocolVersion})` : ""}`);
+  const s = r.server ?? {};
+  const sName = typeof s.name === "string" && s.name ? s.name : "";
+  const sVer = typeof s.version === "string" && s.version ? s.version : "";
+  const sProto = typeof s.protocolVersion === "string" && s.protocolVersion ? s.protocolVersion : "";
+  const name = sName ? `${sName}${sVer ? ` ${sVer}` : ""}` : "MCP server";
+  return clean(`${name}${sProto ? ` (protocol ${sProto})` : ""}`);
 }
 
 function pad(s: string, n: number, right = false): string {

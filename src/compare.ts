@@ -95,7 +95,8 @@ export function evaluate(head: Result, base: Result | null, opts: GateOptions = 
     if (base.runs < 3 || head.runs < 3) notes.push("fewer than 3 runs on one side; regression checks are noisy");
   }
 
-  for (const [metric, limit] of Object.entries(opts.budgets ?? {}) as [Metric, number][]) {
+  for (const [metric, limit] of Object.entries(opts.budgets ?? {}) as [Metric, number | undefined][]) {
+    if (limit === undefined) continue;
     const actual = head.stats[metric]?.[stat];
     const unit = unitOf(metric);
     if (typeof actual !== "number") {
@@ -147,7 +148,12 @@ function validateResult(r: Record<string, unknown>): string[] {
     for (const k of ["platform", "arch", "node"]) if (typeof env[k] !== "string") out.push(`environment.${k} must be a string`);
     if (!isNum(env.cpus)) out.push("environment.cpus must be a number");
   }
-  if (r.server !== undefined && !isObj(r.server)) out.push("server must be an object");
+  if (!isObj(r.server)) out.push("server must be an object");
+  else {
+    for (const k of ["name", "version", "protocolVersion"]) {
+      if (r.server[k] !== undefined && typeof r.server[k] !== "string") out.push(`server.${k} must be a string`);
+    }
+  }
   if (!Array.isArray(r.samples) || !r.samples.every(isObj)) out.push("samples must be an array of objects");
   if (!Array.isArray(r.warnings) || !r.warnings.every((w) => typeof w === "string")) out.push("warnings must be an array of strings");
   if (!isObj(r.stats)) out.push("stats must be an object");

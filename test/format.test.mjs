@@ -46,3 +46,9 @@ test("JSON output round-trips and embeds the verdict", () => {
   assert.equal(parsed.verdict.failed, true);
   assert.equal(JSON.parse(formatJson(head, null)).verdict, undefined);
 });
+
+test("formatText and formatMarkdown handle missing or malformed server metadata defensively", () => {
+  const missing = fakeResult({ ready: 100 }, { server: undefined });
+  assert.match(formatText(missing, null), /MCP server/);
+  assert.match(formatMarkdown(missing, null), /\*\*MCP server\*\*/);
+});

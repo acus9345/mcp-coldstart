@@ -80,6 +80,9 @@ test("budgets fail when exceeded and note missing data", () => {
   assert.equal(r.reasons.length, 1);
   assert.match(r.reasons[0], /tokens p50 5000 tok exceeds budget 4000 tok/);
   assert.ok(r.notes.some((n) => /budget for memory not checked/.test(n)));
+  const withUndef = evaluate(head, null, { budgets: { ready: undefined, tokens: 6000 } });
+  assert.equal(withUndef.failed, false);
+  assert.deepEqual(withUndef.budgets.map((b) => b.metric), ["tokens"]);
 });
 
 test("baseline from a different machine produces a note, not a failure", () => {

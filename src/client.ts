@@ -173,7 +173,7 @@ export class StdioClient {
         msg = JSON.parse(line);
       } catch {
         this.stdoutNoise++;
-        this.stderrBuf += `[non-JSON on stdout] ${line.slice(0, 200)}\n`;
+        this.stderrBuf = (this.stderrBuf + `[non-JSON on stdout] ${line.slice(0, 200)}\n`).slice(-64 * 1024);
         continue;
       }
       if (Array.isArray(msg)) {
@@ -210,8 +210,9 @@ export class StdioClient {
   }
 
   private send(obj: unknown): void {
-    if (this.exited) return;
-    this.child.stdin!.write(JSON.stringify(obj) + "\n");
+    const stdin = this.child.stdin;
+    if (this.exited || !stdin || stdin.writableEnded || stdin.destroyed) return;
+    stdin.write(JSON.stringify(obj) + "\n");
   }
 
   /** Send a request; resolves with the result and the size of the response line in bytes. */

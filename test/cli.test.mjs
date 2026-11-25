@@ -27,9 +27,16 @@ test("usage errors exit 2", async () => {
     ["-n", "0", ...fast],
     ["-n", "abc", ...fast],
     ["--budget", "ready", ...fast],
+    ["--budget", "ready=   ", ...fast],
     ["--budget", "latency=5", ...fast],
     ["--stat", "p99", ...fast],
     ["--format", "xml", ...fast],
+    ["--show-args=false", ...fast],
+    ["--json=false", ...fast],
+    ["--baseline", "", ...fast],
+    ["--output", "", ...fast],
+    ["--cwd", "", ...fast],
+    ["--protocol-version", "", ...fast],
     ["compare", "only-one.json"],
     ["--gate", "", ...fast],
     ["--gate", " , ", ...fast],
@@ -38,6 +45,11 @@ test("usage errors exit 2", async () => {
     assert.equal(r.code, 2, `${args.join(" ")} -> ${r.code}\n${r.stderr}`);
     assert.match(r.stderr, /mcp-coldstart:/);
   }
+  // --format must be validated before launching the server
+  const badFmt = await cli(["--format", "xml", "--", "definitely-not-a-real-command-xyz"]);
+  assert.equal(badFmt.code, 2);
+  assert.match(badFmt.stderr, /--format must be/);
+  assert.doesNotMatch(badFmt.stderr, /command not found/);
 });
 
 test("run prints a text report and exits 0", async () => {
@@ -123,6 +135,8 @@ test("malformed baselines are a clean error with exit 2, never a stack trace", a
   const cases = {
     "no-env-node": (() => { const r = fakeResult({ ready: 10 }); delete r.environment.node; return r; })(),
     "no-environment": (() => { const r = fakeResult({ ready: 10 }); delete r.environment; return r; })(),
+    "no-server": (() => { const r = fakeResult({ ready: 10 }); delete r.server; return r; })(),
+    "server-name-object": fakeResult({ ready: 10 }, { server: { name: { bad: 1 } } }),
     "stats-wrong-type": fakeResult({ ready: 10 }, { stats: { ready: { p50: "fast" } } }),
     "stats-null": fakeResult({ ready: 10 }, { stats: null }),
     "samples-missing": fakeResult({ ready: 10 }, { samples: undefined }),
@@ -152,4 +166,13 @@ test("markdown output for a run", async () => {
   assert.equal(r.code, 0);
   assert.match(r.stdout, /^## MCP server cold start/);
   assert.match(r.stdout, /\| ready \(spawn → tools listed\) \|/);
+});
+
+test("unwritable --output path exits 2 cleanly without a stack trace", async () => {
+  const dir = tmp();
+  const badOut = join(dir, "missing-dir", "out.json");
+  const r = await cli(["-n", "1", "--warmup", "0", "-o", badOut, ...fast]);
+  assert.equal(r.code, 2);
+  assert.match(r.stderr, /cannot write/);
+  assert.doesNotMatch(r.stderr, /\n\s+at /);
 });

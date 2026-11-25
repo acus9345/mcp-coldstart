@@ -56,9 +56,9 @@ export function treeMemoryMb(pid: number | undefined): number | null {
     const rss = new Map<number, number>();
     for (const line of out.split("\n")) {
       const [p, pp, r] = line.trim().split(/\s+/).map(Number);
-      if (p === undefined || pp === undefined || !Number.isFinite(p)) continue;
+      if (p === undefined || pp === undefined || !Number.isFinite(p) || !Number.isFinite(pp)) continue;
       table.set(p, pp);
-      rss.set(p, r ?? 0);
+      rss.set(p, r !== undefined && Number.isFinite(r) ? r : 0);
     }
     const kb = descendants(pid, table).reduce((sum, p) => sum + (rss.get(p) ?? 0), 0);
     return kb > 0 ? kb / 1024 : null;

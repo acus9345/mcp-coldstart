@@ -125,6 +125,7 @@ function readHead(p: string): string {
  * current directory is deliberately not searched implicitly.
  */
 export function resolveWindowsCommand(command: string, opts: ResolveOptions = {}): string | null {
+  if (!command.trim()) return null;
   const env = opts.env ?? process.env;
   const exists = opts.isFile ?? isFile;
   const delimiter = opts.delimiter ?? ";";

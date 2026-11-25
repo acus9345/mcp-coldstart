@@ -110,6 +110,7 @@ function parse(argv: string[]): Parsed {
         if (name === "--budget") budgets.push(v);
         else flags.set(CANON[name] ?? name, v);
       } else if (BOOL_FLAGS.has(name)) {
+        if (eq > 0) throw new UsageError(`${name} does not take a value`);
         flags.set(name, true);
       } else {
         throw new UsageError(`unknown option ${a}`);
@@ -179,7 +180,7 @@ function gateOptions(p: Parsed): GateOptions {
     const budgets: Partial<Record<Metric, number>> = {};
     for (const b of p.budgets) {
       const m = /^([^=]+)=(.+)$/.exec(b);
-      const limit = m ? Number(m[2]) : NaN;
+      const limit = m && m[2]!.trim() !== "" ? Number(m[2]) : NaN;
       if (!m || !Number.isFinite(limit) || limit < 0) throw new UsageError(`--budget expects <metric>=<number>, e.g. ready=1500 (got "${b}")`);
       budgets[parseMetric(m[1]!)] = limit;
     }
@@ -193,8 +194,13 @@ interface Io {
   stderr: (s: string) => void;
 }
 
-function render(p: Parsed, result: Result, report: Report | null): string {
-  const fmt = outputFormat(p);
+function nonEmptyStr(p: Parsed, name: string): string | undefined {
+  const v = str(p, name);
+  if (v !== undefined && v.trim() === "") throw new UsageError(`${name} requires a non-empty value`);
+  return v;
+}
+
+function render(fmt: "text" | "json" | "markdown", p: Parsed, result: Result, report: Report | null): string {
   if (fmt === "json") return formatJson(result, report);
   if (fmt === "markdown") return formatMarkdown(result, report);
   return formatText(result, report, { color: useColor(p) });
@@ -217,50 +223,59 @@ export async function run(argv: string[], io: Io = { stdout: (s) => process.stdo
     if (sub === "compare") {
       if (rest.length !== 2) throw new UsageError("compare expects two result files: mcp-coldstart compare <base.json> <head.json>");
       if (p.command.length) throw new UsageError("compare does not launch a server; drop the -- <command>");
-      if (str(p, "--baseline")) throw new UsageError("compare takes the baseline as its first argument, not --baseline");
+      if (str(p, "--baseline") !== undefined) throw new UsageError("compare takes the baseline as its first argument, not --baseline");
+      const fmt = outputFormat(p);
       const gates = gateOptions(p);
       const [base, head] = await Promise.all([loadResult(rest[0]!), loadResult(rest[1]!)]);
       const report = evaluate(head, base, gates);
-      io.stdout(render(p, head, report));
+      io.stdout(render(fmt, p, head, report));
       return report.failed ? 1 : 0;
     }
     if (sub !== undefined && sub !== "run") throw new UsageError(`unknown command "${sub}" (put the server command after --)`);
     if (rest.length) throw new UsageError(`unexpected argument "${rest[0]}" (put the server command after --)`);
     if (p.command.length === 0) throw new UsageError("missing server command; use: mcp-coldstart -- <command> [args...]");
 
+    const fmt = outputFormat(p);
     const gates = gateOptions(p);
-    const baselinePath = str(p, "--baseline");
-    const base = baselinePath ? await loadResult(baselinePath) : null;
+    const baselinePath = nonEmptyStr(p, "--baseline");
+    const out = nonEmptyStr(p, "--output");
+    const pv = nonEmptyStr(p, "--protocol-version");
+    const cwd = nonEmptyStr(p, "--cwd");
+    const runs = numFlag(p, "--runs", { int: true, min: 1 });
+    const warmup = numFlag(p, "--warmup", { int: true, min: 0 });
+    const timeout = numFlag(p, "--timeout", { min: 1 });
+    const grace = numFlag(p, "--shutdown-grace", { min: 1 });
+
+    const base = baselinePath !== undefined ? await loadResult(baselinePath) : null;
     const [command, ...args] = p.command;
     const opts: MeasureOptions = { command: command!, args, inheritStderr: p.flags.has("--verbose") };
     if (p.flags.has("--show-args")) opts.showArgs = true;
-    const runs = numFlag(p, "--runs", { int: true, min: 1 });
     if (runs !== undefined) opts.runs = runs;
-    const warmup = numFlag(p, "--warmup", { int: true, min: 0 });
     if (warmup !== undefined) opts.warmup = warmup;
-    const timeout = numFlag(p, "--timeout", { min: 1 });
     if (timeout !== undefined) opts.timeoutMs = timeout;
-    const grace = numFlag(p, "--shutdown-grace", { min: 1 });
     if (grace !== undefined) opts.shutdownGraceMs = grace;
-    const pv = str(p, "--protocol-version");
-    if (pv) opts.protocolVersion = pv;
-    const cwd = str(p, "--cwd");
-    if (cwd) opts.cwd = cwd;
+    if (pv !== undefined) opts.protocolVersion = pv;
+    if (cwd !== undefined) opts.cwd = cwd;
     const total = (opts.runs ?? 5) + (opts.warmup ?? 1);
     let done = 0;
     opts.onRun = ({ warmup: w, sample }) => {
       done++;
-      if (process.stderr.isTTY && outputFormat(p) === "text") {
+      if (process.stderr.isTTY && fmt === "text") {
         io.stderr(`\r\u001b[2K  run ${done}/${total}${w ? " (warmup)" : ""}: ready in ${sample.readyMs.toFixed(0)} ms`);
         if (done === total) io.stderr("\r\u001b[2K");
       }
     };
     const result = await measure(opts);
-    const out = str(p, "--output");
-    if (out) await writeFile(out, JSON.stringify(result, null, 2) + "\n");
+    if (out !== undefined) {
+      try {
+        await writeFile(out, JSON.stringify(result, null, 2) + "\n");
+      } catch (err) {
+        throw new InputError(`cannot write ${out}: ${(err as Error).message}`);
+      }
+    }
     const report = base || gates.budgets ? evaluate(result, base, gates) : null;
-    io.stdout(render(p, result, report));
-    if (out) io.stderr(`mcp-coldstart: saved result to ${out}\n`);
+    io.stdout(render(fmt, p, result, report));
+    if (out !== undefined) io.stderr(`mcp-coldstart: saved result to ${out}\n`);
     return report?.failed ? 1 : 0;
   } catch (err) {
     if (err instanceof UsageError || err instanceof RangeError) {
