@@ -1,6 +1,6 @@
 {
   "name": "mcp-coldstart",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Measure an MCP server's cold start (spawn → initialize → tools/list), memory and tool-definition size, and fail CI when they regress.",
   "keywords": [
     "mcp",
